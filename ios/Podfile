@@ -1,0 +1,47 @@
+# Define the minimum iOS version
+min_ios_version_supported = '13.4' # Replace '11.0' with your project's minimum iOS version
+
+# Method to dynamically resolve scripts
+def node_require(script)
+  require Pod::Executable.execute_command('node', ['-p',
+    "require.resolve('#{script}', {paths: [process.argv[1]]})", __dir__]).strip
+end
+
+# Resolve scripts
+node_require('react-native/scripts/react_native_pods.rb')
+node_require('react-native-permissions/scripts/setup.rb')
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+# Flipper configuration
+flipper_config = ENV['NO_FLIPPER'] == "1" ? FlipperConfiguration.disabled : FlipperConfiguration.enabled
+use_frameworks! if ENV['USE_FRAMEWORKS']
+
+target 'TouchdownTravis' do
+  # Automatic linking of native modules
+  config = use_native_modules!
+
+  # React Native and Flipper setup
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :flipper_configuration => flipper_config,
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  # Permissions setup
+  setup_permissions([
+    'AppTrackingTransparency',
+    # Add other permissions your app uses, e.g., 'LocationWhenInUse', 'Camera'
+  ])
+
+  target 'TouchdownTravisTests' do
+    inherit! :complete
+    # Pods for testing, if any
+  end
+
+  # Post-install scripts
+  post_install do |installer|
+    react_native_post_install(installer, config[:reactNativePath], :mac_catalyst_enabled => false)
+  end
+end
